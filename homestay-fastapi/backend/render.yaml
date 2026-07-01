@@ -1,0 +1,36 @@
+databases:
+  - name: homestayfinder-db
+    plan: free
+    databaseName: homestayfinder
+    user: homestayfinder
+
+services:
+  - type: web
+    name: homestayfinder-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: homestayfinder-db
+          property: connectionString
+      # Comma-separated list: your Vercel production URL plus localhost for
+      # testing against the live API during development. Vercel preview URLs
+      # are matched automatically via the regex in app/main.py.
+      - key: CLIENT_URLS
+        sync: false
+      - key: PAYMENT_MODE
+        value: stub
+
+  # Render's free web service tier spins down after 15 minutes of inactivity
+  # and takes ~30s to cold-start on the next request. This cron pings the
+  # health endpoint every 10 minutes so real users never hit a cold start.
+  - type: cron
+    name: homestayfinder-keepalive
+    env: python
+    schedule: "*/10 * * * *"
+    buildCommand: pip install -r requirements.txt
+    startCommand: "curl -fsS https://homestayfinder-api.onrender.com/api/health || true"
